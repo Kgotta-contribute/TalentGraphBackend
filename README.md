@@ -5,7 +5,6 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-FF6F00?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain.com)
 [![PostgreSQL](https://img.shields.io/badge/Supabase-pgvector-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 [![Hugging Face](https://img.shields.io/badge/Hugging_Face-BGE--M3-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/BAAI/bge-m3)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 **TalentGraph Backend** is an enterprise-grade, asynchronous AI recruitment intelligence engine. Built with **FastAPI**, **LangGraph**, and **Supabase (PostgreSQL + pgvector)**, it orchestrates a deterministic multi-agent pipeline that analyzes job descriptions, parses resumes, audits real-world GitHub portfolios via MCP, performs high-dimensional vector retrieval, and outputs transparent, auditable candidate ranking dossiers.
 
@@ -22,7 +21,6 @@
 - [API Reference](#-api-reference)
 - [Testing & Quality Assurance](#-testing--quality-assurance)
 - [Production Deployment (Railway)](#-production-deployment-railway)
-- [License](#-license)
 
 ---
 
@@ -335,9 +333,3 @@ The repository includes native support for [Railway](https://railway.app) via `D
    - Go to **Settings** ➔ **Networking** ➔ Click **Generate Domain**.
 5. **Verify**:
    - Access `https://<your-railway-domain>/health`.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
