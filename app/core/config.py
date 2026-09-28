@@ -6,11 +6,27 @@ from pathlib import Path
 
 _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 
+from pydantic import field_validator
+import json
+
 class Settings(BaseSettings):
     # App
     app_name: str = "TalentAgent"
     auth_mode: str = "dev"  # dev | puter
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "*"]
+    
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
     
     # LLM Provider: 'groq' | 'openai' | 'anthropic'
     llm_provider: str = "groq"
