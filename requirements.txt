@@ -12,7 +12,6 @@ openai>=1.50.0
 langchain>=0.3.0
 langchain-openai>=0.2.0
 langgraph>=0.2.0
-sentence-transformers>=3.0.0
 huggingface-hub>=0.23.0
 python-dotenv>=1.0.0
 sse-starlette>=2.1.0

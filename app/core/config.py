@@ -53,14 +53,14 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1024
     
     # Database
-    database_url: str
+    database_url: str = ""
     
     # Supabase
     supabase_url: str = ""
     supabase_service_role_key: str = ""
     
     # GitHub
-    github_token: str
+    github_token: str = ""
 
     # Rate Limiting
     groq_rpm_limit: int = 20
