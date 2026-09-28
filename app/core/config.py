@@ -7,19 +7,36 @@ from pathlib import Path
 _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 
 from pydantic import field_validator
+from typing import Any
 import json
 
 class Settings(BaseSettings):
     # App
     app_name: str = "TalentAgent"
     auth_mode: str = "dev"  # dev | puter
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "*"]
+    cors_origins: Any = ["http://localhost:5173", "http://localhost:5174", "*"]
     
+    @field_validator(
+        "app_name", "auth_mode", "llm_provider", "groq_api_key", "groq_model", "groq_base_url",
+        "openai_api_key", "openai_model", "openai_base_url", "anthropic_api_key", "anthropic_model",
+        "hf_token", "embedding_model", "database_url", "supabase_url", "supabase_service_role_key",
+        "github_token", mode="before"
+    )
+    @classmethod
+    def clean_str_quotes(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            while (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                v = v[1:-1].strip()
+        return v
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             v = v.strip()
+            while (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                v = v[1:-1].strip()
             if v.startswith("[") and v.endswith("]"):
                 try:
                     return json.loads(v)
