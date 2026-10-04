@@ -25,24 +25,38 @@ class GitHubMCPClient:
         "User-Agent": "TalentAgent-GitHub-MCP",
     }
 
-    def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(headers=self.HEADERS, follow_redirects=True, timeout=20.0)
+    def __init__(self):
+        self._shared_client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._shared_client is None or self._shared_client.is_closed:
+            self._shared_client = httpx.AsyncClient(
+                headers=self.HEADERS,
+                follow_redirects=True,
+                timeout=20.0,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=30),
+            )
+        return self._shared_client
+
+    async def aclose(self):
+        if self._shared_client and not self._shared_client.is_closed:
+            await self._shared_client.aclose()
 
     async def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
         """Centralized HTTP request with automatic rate limiting and quota monitoring."""
         await github_rate_limiter.acquire()
-        async with self._client() as client:
-            resp = await client.request(method, url, **kwargs)
-            # Observability for GitHub rate limit headers
-            rem = resp.headers.get("x-ratelimit-remaining")
-            if rem is not None:
-                try:
-                    rem_int = int(rem)
-                    if rem_int <= 5:
-                        reset_at = resp.headers.get("x-ratelimit-reset")
-                        logger.warning(f"[GitHub MCP] Low GitHub API quota remaining: {rem_int} (reset at {reset_at})")
-                except ValueError:
-                    pass
+        client = await self._get_client()
+        resp = await client.request(method, url, **kwargs)
+        # Observability for GitHub rate limit headers
+        rem = resp.headers.get("x-ratelimit-remaining")
+        if rem is not None:
+            try:
+                rem_int = int(rem)
+                if rem_int <= 5:
+                    reset_at = resp.headers.get("x-ratelimit-reset")
+                    logger.warning(f"[GitHub MCP] Low GitHub API quota remaining: {rem_int} (reset at {reset_at})")
+            except ValueError:
+                pass
             return resp
 
     async def get_user_repos(self, username: str) -> list[dict]:

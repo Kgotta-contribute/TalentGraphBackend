@@ -81,8 +81,8 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     groq_rpm_limit: int = 20
-    github_rpm_limit: int = 20
-    github_rph_limit: int = 850
+    github_rpm_limit: int = 120
+    github_rph_limit: int = 4000
     
     class Config:
         env_file = str(_ENV_PATH)
