@@ -490,145 +490,35 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         ]
 
     # ─────────────────────────────────────────────────────────────────────────
-    # High Level Design (HLD) Workflow Diagrams
+    # Dynamic High Level Design (HLD) Workflow Diagrams
     # ─────────────────────────────────────────────────────────────────────────
-    repo_lower = state.get("repo", "").lower()
-    owner_lower = state.get("owner", "").lower()
-
-    # 1. TalentGraphFrontend HLD Workflow (Exact Image 1)
-    if "talentgraphfrontend" in repo_lower or ("kgotta-contribute" in owner_lower and "frontend" in repo_lower) or any("talentagentapi" in p.lower() for p in file_paths):
-        arch_style = "Dual-Mode Architecture & Client-Server Workflow"
-        ascii_diagram = """+-------------------------------------------------------------+
-|                     TalentGraph Frontend                    |
-|                   React 19 + React Router v7                |
-+-------------------------------------------------------------+
-                |                             |
-         [Candidate Mode]              [Recruiter Mode]
-                |                             |
-                v                             v
-         Puter.js Storage             TalentGraph REST API
-       (KV Store / FS / Auth)         (FastAPI + LangGraph)
-                |                             |
-                v                             v
-       Candidate ATS Audits          Supabase PostgreSQL
-                                          + pgvector
-                                              |
-                                              v
-                                     Hugging Face BGE-M3
-                                     + GitHub MCP Client"""
-
-    # 2. TalentGraphBackend HLD Workflow (Exact Image 2)
-    elif "talentgraphbackend" in repo_lower or ("kgotta-contribute" in owner_lower and "backend" in repo_lower) or any("jd_analyzer" in p for p in file_paths):
-        arch_style = "6-Agent Recruitment Evaluation & Scoring Pipeline"
-        ascii_diagram = """[ Job Description ] ───► Agent 1 (JD Analyzer) ──┐
-                                                 │
-                                                 ▼
-[ Candidate Resume ] ──► Agent 2 (Profile Parser) ──► Agent 3 (Requirement Verifier)
-                                                      │ (pgvector RAG + BGE-M3)
-[ GitHub Profile ] ────► Agent 6 (GitHub MCP Engine) ─┴─┐
-                                                        │
-                                                        ▼
-                                          Agent 4 (Deterministic Scoring)
-                                            [ NO LLM • Pure Mathematical Logic ]
-                                                        │
-                                                        ▼
-                                          Agent 5 (Executive Dossier Agent)
-                                                        │
-                                                        ▼
-                                          [ Structured Interview Report & Rankings ]"""
-
-    # 3. NAVIN-STAR/Multi_Agent_Debate HLD Workflow (Exact Image 3)
-    elif "multi_agent_debate" in repo_lower or "debate" in repo_lower or any("debateworkflow" in p.lower() or "llmport" in p.lower() for p in file_paths):
-        arch_style = "Multi-Agent Debate Framework with Hexagonal Architecture"
-        ascii_diagram = """┌────────────────────────────────────────────────────────┐
-│                   PRESENTATION LAYER                   │
-│         (Streamlit Web App, FastAPI Server)            │
-└────────────────────────────────────────────────────────┘
-                            │ (Invokes)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                  APPLICATION WORKFLOW                  │
-│               (DebateWorkflow, DebateGraph)            │
-└────────────────────────────────────────────────────────┘
-                            │ (Uses)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                         PORTS                          │
-│                       (LLMPort)                        │
-└────────────────────────────────────────────────────────┘
-                            ▲ (Implements / Plugs into)
-                            │
-┌────────────────────────────────────────────────────────┐
-│                        ADAPTERS                        │
-│                (Ollama, Groq Adapters)                 │
-└────────────────────────────────────────────────────────┘
-                            │ (Uses)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                      CORE DOMAIN                       │
-│        (Agents, models.py, prompts, utils)             │
-└────────────────────────────────────────────────────────┘"""
-
-    # 4. ai-resume-analyzer HLD Workflow (Exact Text 4)
-    elif "ai-resume-analyzer" in repo_lower or "ai_resume_analyzer" in repo_lower:
-        arch_style = "React Router SSR & AI Resume Audit Workflow"
-        ascii_diagram = """┌───────────────────────┐   HTTP GET/POST   ┌───────────────────────────────────────┐
-│   Browser Client      │ ─────────────────► │   Node.js Server (React Router SSR)   │
-│ (React Router SPA)    │                    │   @react-router/node, @react-router/serve│
-└───────────────────────┘                    └─────────────────────┬─────────────────┘
-                                                          │
-                                                          ▼
-                                            ┌─────────────────────────────┐
-                                            │   Route Handlers (app/routes)│
-                                            │   – home, upload, resume, … │
-                                            └───────────────┬─────────────┘
-                                                            │
-                                                            ▼
-                                            ┌─────────────────────────────┐
-                                            │   UI Components               │
-                                            │   – FileUploader, ResumeCard, │
-                                            │   – ScoreGauge, Navbar …      │
-                                            └───────────────┬─────────────┘
-                                                            │
-                                                            ▼
-                                            ┌─────────────────────────────┐
-                                            │   Global State Store (Zustand)│
-                                            │   – resume metadata, images, │
-                                            │   – feedback scores           │
-                                            └───────────────┬─────────────┘
-                                                            │
-                                                            ▼
-                                            ┌─────────────────────────────┐
-                                            │   PDF → Image Service         │
-                                            │   (pdfjs‑dist lazy load)      │
-                                            └───────────────┬─────────────┘
-                                                            │
-                                                            ▼
-                                            ┌─────────────────────────────┐
-                                            │   Local Disk / Puter Wrapper  │
-                                            │   – fs.write, fs.read, delete │
-                                            └───────────────┬─────────────┘
-                                                            │
-                                                            ▼
-                                            ┌─────────────────────────────┐
-                                            │   Rendered HTML / JSON Response│
-                                            └─────────────────────────────┘
-
-┌───────────────────────┐
-│   Docker Container    │
-│   (multi‑stage build) │
-└───────────────────────┘"""
-
-    elif is_frontend:
-        arch_style = "Modern Single-Page Application (SPA) Architecture"
+    if is_frontend:
+        arch_style = "Modern Single-Page Application (SPA) Client Architecture"
         fe_fw = frontend_tech[0] if frontend_tech else "React / Vite SPA"
-        state_mgr = "Zustand Store" if "Zustand" in frontend_tech else ("Redux Store" if "Redux" in frontend_tech else "Local State")
+        state_mgr = "Zustand Store" if "Zustand" in frontend_tech else ("Redux Store" if "Redux" in frontend_tech else "Local State Management")
         router_name = "React Router" if any("Router" in t for t in frontend_tech) else "Client Router"
         styling = "Tailwind CSS" if "Tailwind" in frontend_tech else "Component Styling"
-        api_layer = "talentAgentApi / HTTP Façade" if any("talentagentapi" in p.lower() for p in file_paths) else "API Client (REST & SSE)"
-        target_backend = "FastAPI / LangGraph Backend" if "FastAPI" in backend_tech else "TalentGraph Backend API"
+        api_layer = "API Client & Event Ingress" if any("api" in p.lower() for p in file_paths) else "HTTP Client (REST & SSE)"
+        target_backend = "Backend REST & SSE API" if not backend_tech else f"{backend_tech[0]} API Gateway"
 
-        ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
+        # Check if dual modes or multi-persona routes are present
+        has_dual_modes = any("recruiter" in p.lower() or "candidate" in p.lower() or "auth" in p.lower() for p in file_paths)
+        if has_dual_modes:
+            ascii_diagram = f"""+-------------------------------------------------------------+
+|                     Client Application                      |
+|                   {fe_fw.center(42)}|
++-------------------------------------------------------------+
+                |                             |
+         [Feature Mode A]              [Feature Mode B]
+                |                             |
+                v                             v
+         Client State Store           API Service Facade
+       ({state_mgr.center(22)})         ({target_backend.center(21)})
+                |                             |
+                v                             v
+         Local Workflows              Backend Services & Data"""
+        else:
+            ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
 │                   User / Web Browser                   │
 └────────────────────────────────────────────────────────┘
                             │
@@ -662,26 +552,9 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         agent_labels = []
         for p in file_paths:
             fn = p.split("/")[-1].replace(".py", "").replace(".ts", "").replace(".js", "").lower()
-            if "critic" in fn:
-                agent_labels.append("Critic Agent")
-            elif "optimist" in fn:
-                agent_labels.append("Optimist Agent")
-            elif "judge" in fn:
-                agent_labels.append("Judge Agent")
-            elif "jd_analyzer" in fn:
-                agent_labels.append("JD Analyzer")
-            elif "resume_parser" in fn:
-                agent_labels.append("Resume Parser")
-            elif "requirement_verifier" in fn:
-                agent_labels.append("Req Verifier")
-            elif "report_generator" in fn or "dossier" in fn:
-                agent_labels.append("Dossier Agent")
-            elif "scoring" in fn or "ranking" in fn:
-                agent_labels.append("Ranking Engine")
-            elif "github_verifier" in fn:
-                agent_labels.append("GitHub MCP Agent")
-            elif "agent" in fn and fn not in ("__init__", "base", "state", "agent", "agents"):
-                agent_labels.append(fn.replace("_", " ").title())
+            if any(k in fn for k in ["critic", "optimist", "judge", "analyzer", "parser", "verifier", "dossier", "scoring", "ranking", "agent"]):
+                if fn not in ("__init__", "base", "state", "agent", "agents", "client"):
+                    agent_labels.append(fn.replace("_", " ").title())
         agent_labels = list(dict.fromkeys(agent_labels))
 
         a1 = agent_labels[0] if len(agent_labels) > 0 else "Domain Agent 1"
@@ -692,30 +565,25 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         db_label = db_tech[0] if db_tech else "Database Storage"
         llm_label = ai_tech[0] if ai_tech else "LLM Inference"
 
-        ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
-│           {ui_label.center(44)} │
-└────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│       {coord_name.center(48)} │
-└────────────────────────────────────────────────────────┘
-            │               │               │
-            ▼               ▼               ▼
-┌─────────────────┬─────────────────┬─────────────────┐
-│{a1.center(17)}│{a2.center(17)}│{a3.center(17)}│
-└─────────────────┴─────────────────┴─────────────────┘
-            │               │               │
-            └───────────────┼───────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│            Synthesis / Evaluation & Output DTO         │
-└────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│    Persistence & LLM: {db_label} · {llm_label}    │
-└────────────────────────────────────────────────────────┘"""
+        ascii_diagram = f"""[ User Ingress ] ───► [ Workflow Coordinator / Router ] ──┐
+                                                           │
+                                                           ▼
+                      ┌───────────────────┬───────────────────┐
+                      ▼                   ▼                   ▼
+            ┌───────────────────┐┌───────────────────┐┌───────────────────┐
+            │{a1.center(19)}││{a2.center(19)}││{a3.center(19)}│
+            └───────────────────┘└───────────────────┘└───────────────────┘
+                      │                   │                   │
+                      └───────────────────┼───────────────────┘
+                                          ▼
+                      ┌───────────────────────────────────────┐
+                      │    Synthesis, Scoring & Arbiter DTO   │
+                      └───────────────────────────────────────┘
+                                          │
+                                          ▼
+                      ┌───────────────────────────────────────┐
+                      │ Persistence: {db_label} · {llm_label} │
+                      └───────────────────────────────────────┘"""
     else:
         arch_style = "Enterprise REST & Modular API" if backend_tech else "Modular System Architecture"
         srv_name = backend_tech[0] if backend_tech else "Application Core"
@@ -770,32 +638,20 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 async def _analyze_architecture(state: GitHubAnalysisState) -> dict:
     fallback = _infer_tech_and_architecture_fallback(state)
 
-    repo_lower = state.get("repo", "").lower()
-    owner_lower = state.get("owner", "").lower()
-    file_paths = [f["path"] for f in state.get("file_tree", [])]
-    is_known_hld_repo = (
-        "talentgraphfrontend" in repo_lower
-        or "talentgraphbackend" in repo_lower
-        or ("kgotta-contribute" in owner_lower and ("frontend" in repo_lower or "backend" in repo_lower))
-        or "multi_agent_debate" in repo_lower
-        or "ai-resume-analyzer" in repo_lower
-        or "ai_resume_analyzer" in repo_lower
-        or any("jd_analyzer" in p for p in file_paths)
-        or any("debateworkflow" in p.lower() or "llmport" in p.lower() for p in file_paths)
-    )
-
     system = """You are a Principal Software Architect. Analyze the repository evidence and design a High Level Design (HLD) Workflow Diagram representing the end-to-end dataflow and system architecture.
 
 CRITICAL HLD WORKFLOW DIAGRAM RULES:
-1. FORMAT: Design an interactive, easy-to-read High Level Design (HLD) Workflow diagram using 2D box boundaries (┌─────┐ / └─────┘ or +-----+ / +-----+) and directional flow arrows (──►, │, ▼, ◄──►) showing how requests/data flow through the system.
+1. FORMAT: Design an interactive, easy-to-read High Level Design (HLD) Workflow diagram using 2D box boundaries (┌─────┐ / └─────┘ or +-----+ / +-----+) and directional flow arrows (──►, │, ▼, ◄──►) showing how requests and data flow through the system.
 2. SHOW THE END-TO-END WORKFLOW:
-   - Identify inputs / triggers: [ User / Input ], [ Job / Event ], etc.
-   - Trace through layers with relationship labels: (Invokes), (Uses), (Publishes), [ Branch A ] / [ Branch B ], etc.
-   - Show core processing / agent pipelines / state graphs.
-   - Show persistence, adapters, and final output / response deliverables.
-3. STRICT GROUNDING:
-   - ONLY include technologies, frameworks, and databases that actually appear in the verified tech stack and repo evidence.
-   - NEVER hallucinate or guess external cloud services (NEVER mention AWS S3, OpenAI, Claude, or Redis unless explicitly confirmed in evidence).
+   - Identify inputs and triggers: e.g. [ User / Web Client ], [ Job Description ], [ Resume File ], [ GitHub URL ], [ Ingress Request ].
+   - Trace through operational layers with relationship labels: (Invokes), (Uses), (Publishes), [ Branch A ] / [ Branch B ], etc.
+   - Show core processing pipelines, StateGraphs, or specialized domain agents and workers identified in the code.
+   - Show persistence, adapters, and final output deliverables (e.g. [ Structured Report & Rankings ], [ Rendered UI / JSON Response ]).
+3. 100% GROUNDED & ZERO HALLUCINATION:
+   - Base the workflow strictly on the verified technologies, files, and imports in the repository.
+   - Do NOT invent unverified third-party cloud services (no AWS S3, OpenAI, Claude, or Redis unless explicitly found in evidence).
+4. ENGAGING & DESCRIPTIVE:
+   - Provide clear, informative labels inside the boxes reflecting the actual codebase structure.
 
 Return JSON:
 {
@@ -835,7 +691,8 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
     }
     res = {}
     try:
-        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=30.0)
+        # Give LLM 60s timeout to synthesize a rich, dynamic 2D box HLD workflow without being aborted
+        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=60.0)
     except Exception as e:
         logger.warning(f"Architecture LLM call timed out or failed for {state.get('owner')}/{state.get('repo')}: {e}")
 
@@ -847,15 +704,10 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
         else:
             res = fallback
 
-    # For known reference architectures, always use the authoritative HLD workflow diagram
-    if is_known_hld_repo:
+    # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
+    diagram = res.get("ascii_architecture_diagram", "")
+    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
         res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
-        res["architecture_style"] = fallback["architecture_style"]
-    else:
-        # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
-        diagram = res.get("ascii_architecture_diagram", "")
-        if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
-            res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
 
     # Ensure tech_stack has all categories populated from fallback
     ts = res.setdefault("tech_stack", {})
