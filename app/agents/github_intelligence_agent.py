@@ -447,7 +447,7 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
             frontend_tech.append(l["name"])
 
     is_multi_agent = any("debate" in p or "agent" in p for p in file_paths) or "multi_agent" in state["repo"].lower()
-    arch_style = "Multi-Agent StateGraph & Orchestration System" if is_multi_agent else ("Enterprise REST & Modular API" if backend_tech else "Modular System Architecture")
+    is_frontend = ((frontend_tech and not backend_tech) or "frontend" in state["repo"].lower()) and not is_multi_agent
     desc = state.get("repo_metadata", {}).get("description") or f"{state['owner']}/{state['repo']} repository system architecture"
 
     components = []
@@ -456,7 +456,7 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         components.append({
             "name": "Domain Agent Workers",
             "path": agent_paths[0] if agent_paths else "agents",
-            "responsibility": "Autonomous agents executing specialized domain tasks and debate reasoning",
+            "responsibility": "Autonomous agents executing specialized domain tasks and reasoning",
             "technologies": [t for t in (ai_tech + backend_tech) if t][:3],
         })
     if any("workflow" in p or "graph" in p for p in file_paths):
@@ -464,7 +464,7 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         components.append({
             "name": "Graph Orchestration & Routing",
             "path": wf_paths[0] if wf_paths else "workflow",
-            "responsibility": "Manages execution state, conditional transitions, and turn-based coordination",
+            "responsibility": "Manages execution state, conditional transitions, and coordination",
             "technologies": ["LangGraph" if "LangGraph" in ai_tech else "StateGraph Engine"],
         })
     if any("api" in p or "route" in p for p in file_paths):
@@ -475,8 +475,8 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
             "responsibility": "Handles HTTP ingress, request validation, and streaming responses",
             "technologies": backend_tech[:2] or ["REST API"],
         })
-    if any("ui" in p or "streamlit" in p for p in file_paths):
-        ui_paths = [p for p in file_paths if ("ui" in p or "streamlit" in p) and not p.startswith("test")][:2]
+    if any("ui" in p or "streamlit" in p or "routes" in p for p in file_paths):
+        ui_paths = [p for p in file_paths if ("ui" in p or "streamlit" in p or "routes" in p) and not p.startswith("test")][:2]
         components.append({
             "name": "User Interface Layer",
             "path": ui_paths[0] if ui_paths else "ui",
@@ -486,53 +486,113 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 
     if not components:
         components = [
-            {"name": "Core Application Logic", "path": "main.py" if any("main.py" in p for p in file_paths) else "/", "responsibility": "Main entry point and service execution", "technologies": backend_tech[:2]},
+            {"name": "Core Application Logic", "path": "main.py" if any("main.py" in p for p in file_paths) else "/", "responsibility": "Main entry point and service execution", "technologies": (backend_tech or frontend_tech)[:2]},
         ]
 
-    # Dynamic ASCII Diagram
-    if is_multi_agent:
-        ui_label = frontend_tech[0] if frontend_tech else "User / Client Ingress"
-        agent_labels = []
-        for p in file_paths:
-            if "critic" in p:
-                agent_labels.append("Critic Agent")
-            elif "optimist" in p:
-                agent_labels.append("Optimist Agent")
-            elif "judge" in p:
-                agent_labels.append("Judge Agent")
-        if not agent_labels:
-            agent_labels = ["Worker Agent 1", "Worker Agent 2"]
-        a1 = agent_labels[0] if len(agent_labels) > 0 else "Agent Node A"
-        a2 = agent_labels[1] if len(agent_labels) > 1 else "Agent Node B"
-        a3 = agent_labels[2] if len(agent_labels) > 2 else "Synthesis / Arbiter"
+    # Dynamic 2D Box ASCII Flowchart
+    if is_frontend:
+        arch_style = "Modern Single-Page Application (SPA) Architecture"
+        fe_fw = frontend_tech[0] if frontend_tech else "React / Vite SPA"
+        state_mgr = "Zustand Store" if "Zustand" in frontend_tech else ("Redux Store" if "Redux" in frontend_tech else "Local State")
+        router_name = "React Router" if any("Router" in t for t in frontend_tech) else "Client Router"
+        styling = "Tailwind CSS" if "Tailwind" in frontend_tech else "Component Styling"
+        api_layer = "talentAgentApi / HTTP Façade" if any("talentagentapi" in p.lower() for p in file_paths) else "API Client (REST & SSE)"
+        target_backend = "FastAPI / LangGraph Backend" if "FastAPI" in backend_tech else "TalentGraph Backend API"
 
         ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
-│            {ui_label.center(44)}│
+│                   User / Web Browser                   │
 └────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│         Workflow Coordinator / StateGraph Router       │
+│         {fe_fw.center(46)} │
+│         Styling: {styling.center(36)} │
 └────────────────────────────────────────────────────────┘
             │                               │
             ▼                               ▼
 ┌──────────────────────┐        ┌──────────────────────┐
-│ {a1.center(20)} │        │ {a2.center(20)} │
+│  State Management    │        │  Client Navigation   │
+│  {state_mgr.center(20)}│        │  {router_name.center(20)}│
 └──────────────────────┘        └──────────────────────┘
             │                               │
             └───────────────┬───────────────┘
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│ {a3.center(54)} │
+│         {api_layer.center(46)} │
+│         (REST Client & SSE Event Stream Ingress)       │
 └────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│                Consensus / Output DTO                  │
+│         {target_backend.center(46)} │
+└────────────────────────────────────────────────────────┘"""
+    elif is_multi_agent:
+        arch_style = "Multi-Agent StateGraph & Orchestration System"
+        ui_label = frontend_tech[0] if frontend_tech else "Client / User Ingress"
+        
+        # Grounded agent extraction from file paths
+        agent_labels = []
+        for p in file_paths:
+            fn = p.split("/")[-1].replace(".py", "").replace(".ts", "").replace(".js", "").lower()
+            if "critic" in fn:
+                agent_labels.append("Critic Agent")
+            elif "optimist" in fn:
+                agent_labels.append("Optimist Agent")
+            elif "judge" in fn:
+                agent_labels.append("Judge Agent")
+            elif "jd_analyzer" in fn:
+                agent_labels.append("JD Analyzer")
+            elif "resume_parser" in fn:
+                agent_labels.append("Resume Parser")
+            elif "requirement_verifier" in fn:
+                agent_labels.append("Req Verifier")
+            elif "report_generator" in fn or "dossier" in fn:
+                agent_labels.append("Dossier Agent")
+            elif "scoring" in fn or "ranking" in fn:
+                agent_labels.append("Ranking Engine")
+            elif "github_verifier" in fn:
+                agent_labels.append("GitHub MCP Agent")
+            elif "agent" in fn and fn not in ("__init__", "base", "state", "agent", "agents"):
+                agent_labels.append(fn.replace("_", " ").title())
+        agent_labels = list(dict.fromkeys(agent_labels))
+
+        a1 = agent_labels[0] if len(agent_labels) > 0 else "Domain Agent 1"
+        a2 = agent_labels[1] if len(agent_labels) > 1 else "Domain Agent 2"
+        a3 = agent_labels[2] if len(agent_labels) > 2 else "Synthesis / Arbiter"
+        
+        coord_name = "LangGraph StateGraph Router" if "LangGraph" in ai_tech else "Workflow Coordinator / Router"
+        db_label = db_tech[0] if db_tech else "Database Storage"
+        llm_label = ai_tech[0] if ai_tech else "LLM Inference"
+
+        ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
+│           {ui_label.center(44)} │
+└────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│       {coord_name.center(48)} │
+└────────────────────────────────────────────────────────┘
+            │               │               │
+            ▼               ▼               ▼
+┌─────────────────┬─────────────────┬─────────────────┐
+│{a1.center(17)}│{a2.center(17)}│{a3.center(17)}│
+└─────────────────┴─────────────────┴─────────────────┘
+            │               │               │
+            └───────────────┼───────────────┘
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│            Synthesis / Evaluation & Output DTO         │
+└────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│    Persistence & LLM: {db_label} · {llm_label}    │
 └────────────────────────────────────────────────────────┘"""
     else:
+        arch_style = "Enterprise REST & Modular API" if backend_tech else "Modular System Architecture"
         srv_name = backend_tech[0] if backend_tech else "Application Core"
         db_name = db_tech[0] if db_tech else "Data Persistence"
+        ai_name = ai_tech[0] if ai_tech else "Service Workers"
         ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
 │               Client Ingress / User Ingress            │
 └────────────────────────────────────────────────────────┘
@@ -541,12 +601,14 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 ┌────────────────────────────────────────────────────────┐
 │          API Routing Layer ({srv_name.center(24)})         │
 └────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│       Service Logic / Orchestration Workers            │
-└────────────────────────────────────────────────────────┘
-                            │
+            │                               │
+            ▼                               ▼
+┌──────────────────────┐        ┌──────────────────────┐
+│  Business Services   │        │  Domain Orchestrator │
+│  {srv_name.center(20)}│        │  {ai_name.center(20)}│
+└──────────────────────┘        └──────────────────────┘
+            │                               │
+            └───────────────┬───────────────┘
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │          Data Persistence & Storage ({db_name.center(16)})     │
@@ -578,11 +640,25 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 
 
 async def _analyze_architecture(state: GitHubAnalysisState) -> dict:
-    system = """You are a Principal Software Architect. Analyze the repository evidence and infer architecture.
+    fallback = _infer_tech_and_architecture_fallback(state)
+
+    system = """You are a Principal Software Architect. Analyze the repository evidence and design a precise, grounded 2D Box ASCII Flowchart representing the real system architecture.
+
+CRITICAL ARCHITECTURE DIAGRAM RULES:
+1. FORMAT: MUST be a connected 2D BOX & ARROW FLOWCHART using rectangular box borders (┌────────────────────────┐ / └────────────────────────┘ or +------------------------+ / +------------------------+) with vertical & horizontal flow arrows (│, ▼, ◄──►).
+2. DO NOT output an indented directory tree (NEVER output ├── or └──). Output real functional system blocks and topological layers!
+3. STRICT GROUNDING & ZERO HALLUCINATION:
+   - ONLY include technologies, frameworks, and databases that actually appear in the verified tech stack and repo evidence.
+   - NEVER hallucinate or guess external cloud services (NEVER mention AWS S3, OpenAI, Claude, or Redis unless explicitly confirmed in evidence).
+   - If frontend-focused: Show Browser Ingress -> Client SPA (Framework & Router) -> State Store & Components -> API Client / Facade -> Backend API Gateway.
+   - If backend-focused: Show Client Ingress -> API Gateway/FastAPI -> Services / LangGraph StateGraph -> Agents / Workers -> PostgreSQL/pgvector + LLM.
+   - If multi-agent debate: Show Ingress -> Debate Coordinator/StateGraph -> Real Named Agents (e.g. Optimist, Critic, Judge) -> LLM Adapters.
+4. MAKE IT ENGAGING, ACCURATE & DESCRIPTIVE:
+   - Include component responsibilities and technology labels inside or beside the boxes.
 
 Return JSON:
 {
-  "architecture_style": "string (e.g. 'Multi-Agent Debate Framework' or 'Enterprise REST API')",
+  "architecture_style": "string (e.g. 'Event-Driven Multi-Agent Architecture' or 'Modern Single-Page Application (SPA)' or 'Enterprise Async REST API')",
   "system_summary": "string (2-3 paragraphs: what it does, architectural core, data flow)",
   "tech_stack": {
     "frontend": ["string"],
@@ -595,33 +671,35 @@ Return JSON:
   "core_components": [{"name": "string", "path": "string", "responsibility": "string", "technologies": ["string"]}],
   "design_patterns": [{"pattern": "string", "rationale": "string"}],
   "data_flow_explanation": "string (step-by-step from ingress to storage/response)",
-  "ascii_architecture_diagram": "string (Clean hierarchical ASCII tree diagram showing top-down flow)",
+  "ascii_architecture_diagram": "string (Clean, readable 2D box-and-arrow ASCII diagram adhering strictly to rules above)",
   "engineering_strengths": ["string"],
   "potential_bottlenecks_and_risks": ["string"],
   "technical_complexity_score": 85,
   "production_readiness_tier": "Production-Grade"
 }
 production_readiness_tier options: "Production-Grade" | "Pre-Production / Beta" | "Proof of Concept / Demo" | "Experimental Prototype"
-Base ONLY on provided evidence. Do not invent files."""
+Base ONLY on provided evidence. Do not invent unverified technologies."""
 
     context = {
         "repository": f"{state['owner']}/{state['repo']}",
         "subpath_analyzed": state.get("subpath") or "root",
         "description": state.get("repo_metadata", {}).get("description"),
         "languages": state.get("languages", [])[:6],
-        "file_tree_sample": [f["path"] for f in state.get("file_tree", [])[:40]],
-        "manifests": {k: v[:600] for k, v in list(state.get("manifest_files", {}).items())[:4]},
+        "verified_tech_stack": fallback["tech_stack"],
+        "detected_components": fallback["core_components"],
+        "file_tree_sample": [f["path"] for f in state.get("file_tree", [])[:50]],
+        "manifests": {k: v[:800] for k, v in list(state.get("manifest_files", {}).items())[:4]},
         "readme_excerpt": state.get("readme", "")[:2500],
-        "source_samples": {k: v[:600] for k, v in list(state.get("source_code_samples", {}).items())[:6]},
+        "source_samples": {k: v[:800] for k, v in list(state.get("source_code_samples", {}).items())[:6]},
     }
     res = {}
     try:
-        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=10.0)
+        # Give LLM sufficient time (30s) to synthesize a rich 2D box diagram without timing out
+        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=30.0)
     except Exception as e:
         logger.warning(f"Architecture LLM call timed out or failed for {state.get('owner')}/{state.get('repo')}: {e}")
 
     if not res or not res.get("architecture_style") or not res.get("tech_stack"):
-        fallback = _infer_tech_and_architecture_fallback(state)
         if res and isinstance(res, dict):
             for k, v in fallback.items():
                 if not res.get(k):
@@ -629,9 +707,14 @@ Base ONLY on provided evidence. Do not invent files."""
         else:
             res = fallback
 
-    # Ensure tech_stack has all categories populated
+    # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
+    diagram = res.get("ascii_architecture_diagram", "")
+    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
+        res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
+
+    # Ensure tech_stack has all categories populated from fallback
     ts = res.setdefault("tech_stack", {})
-    fallback_ts = _infer_tech_and_architecture_fallback(state)["tech_stack"]
+    fallback_ts = fallback["tech_stack"]
     for cat, default_items in fallback_ts.items():
         if not ts.get(cat) and default_items:
             ts[cat] = default_items
