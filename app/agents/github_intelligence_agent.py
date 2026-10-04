@@ -78,8 +78,8 @@ FALLBACK_MODELS = [
 ]
 
 
-async def _llm_json(system: str, user: str, retries: int = 0) -> dict:
-    """Call Groq with JSON enforcement, rate limiting, semaphore gating, model failover, and fast timeout."""
+async def _llm_json(system: str, user: str, retries: int = 1) -> dict:
+    """Call Groq with JSON enforcement, rate limiting, semaphore gating, model failover, and timeout."""
     async with _sem:
         for model_name in FALLBACK_MODELS:
             for attempt in range(retries + 1):
@@ -95,7 +95,7 @@ async def _llm_json(system: str, user: str, retries: int = 0) -> dict:
                             response_format={"type": "json_object"},
                             temperature=0.1,
                         ),
-                        timeout=10.0,
+                        timeout=55.0,
                     )
                     raw_text = resp.choices[0].message.content.strip()
                     if raw_text:
@@ -706,7 +706,7 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
 
     # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
     diagram = res.get("ascii_architecture_diagram", "")
-    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
+    if (("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram)):
         res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
 
     # Ensure tech_stack has all categories populated from fallback
@@ -717,6 +717,7 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
             ts[cat] = default_items
 
     return res
+
 
 
 def _parse_dependencies_deterministically(state: GitHubAnalysisState) -> dict:
