@@ -72,13 +72,13 @@ _sem = asyncio.Semaphore(3)
 
 
 FALLBACK_MODELS = [
-    settings.groq_model,     # Primary configured model (e.g. openai/gpt-oss-120b)
     "qwen/qwen3.8-27b",       # High token throughput and excellent JSON adherence
+    settings.groq_model,     # Configured model (e.g. openai/gpt-oss-120b)
     "openai/gpt-oss-20b",     # Fast fallback
 ]
 
 
-async def _llm_json(system: str, user: str, retries: int = 0, timeout: float = 60.0) -> dict:
+async def _llm_json(system: str, user: str, retries: int = 1, timeout: float = 60.0) -> dict:
     """Call Groq with JSON enforcement, rate limiting, semaphore gating, model failover, and generous timeout."""
     async with _sem:
         for model_name in FALLBACK_MODELS:
@@ -895,7 +895,7 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
                                       ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                     CLIENT-SIDE STATE & NAVIGATION                       │
-│      State: {state_mgr.padEnd(25, ' ')}  Router: {router_name.padEnd(24, ' ')}│
+│      State: {state_mgr.ljust(25)}  Router: {router_name.ljust(24)}│
 └──────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -956,7 +956,7 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
                                       ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                     DATA PERSISTENCE & LLM INFERENCE                     │
-│               Persistence: {db_label.padEnd(20, ' ')} LLM: {llm_label.padEnd(21, ' ')}│
+│               Persistence: {db_label.ljust(20)} LLM: {llm_label.ljust(21)}│
 └──────────────────────────────────────────────────────────────────────────┘"""
     else:
         arch_style = "Enterprise REST & Modular API" if backend_tech else "Modular System Architecture"
@@ -1095,7 +1095,7 @@ Base ONLY on provided evidence. Do NOT invent unverified third-party cloud servi
     res = {}
     try:
         # Full 60s timeout so the model can generate the complete multi-tier architecture without interruption
-        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0, timeout=60.0), timeout=60.0)
+        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=1, timeout=60.0), timeout=60.0)
     except Exception as e:
         logger.warning(f"Architecture LLM call timed out or failed for {state.get('owner')}/{state.get('repo')}: {e}")
 
@@ -1108,13 +1108,13 @@ Base ONLY on provided evidence. Do NOT invent unverified third-party cloud servi
             res = fallback
     else:
         # Merge missing rich properties from fallback
-        for key in ["zones", "request_lifecycle", "data_flow_stages", "agent_pipeline", "complexity_metrics"]:
+        for key in ["zones", "request_lifecycle", "data_flow_stages", "agent_pipeline", "complexity_metrics", "ascii_architecture_diagram"]:
             if not res.get(key) and fallback.get(key):
                 res[key] = fallback[key]
 
-    # Guard against LLM generating directory trees instead of 2D boxes
+    # Guard against LLM generating directory trees or empty string instead of 2D boxes
     diagram = res.get("ascii_architecture_diagram", "")
-    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
+    if not diagram or len(diagram.strip()) < 30 or (("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram)):
         res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
 
     # Ensure tech_stack has all categories populated from fallback
