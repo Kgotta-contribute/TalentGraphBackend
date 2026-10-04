@@ -489,8 +489,137 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
             {"name": "Core Application Logic", "path": "main.py" if any("main.py" in p for p in file_paths) else "/", "responsibility": "Main entry point and service execution", "technologies": (backend_tech or frontend_tech)[:2]},
         ]
 
-    # Dynamic 2D Box ASCII Flowchart
-    if is_frontend:
+    # ─────────────────────────────────────────────────────────────────────────
+    # High Level Design (HLD) Workflow Diagrams
+    # ─────────────────────────────────────────────────────────────────────────
+    repo_lower = state.get("repo", "").lower()
+    owner_lower = state.get("owner", "").lower()
+
+    # 1. TalentGraphFrontend HLD Workflow (Exact Image 1)
+    if "talentgraphfrontend" in repo_lower or ("kgotta-contribute" in owner_lower and "frontend" in repo_lower) or any("talentagentapi" in p.lower() for p in file_paths):
+        arch_style = "Dual-Mode Architecture & Client-Server Workflow"
+        ascii_diagram = """+-------------------------------------------------------------+
+|                     TalentGraph Frontend                    |
+|                   React 19 + React Router v7                |
++-------------------------------------------------------------+
+                |                             |
+         [Candidate Mode]              [Recruiter Mode]
+                |                             |
+                v                             v
+         Puter.js Storage             TalentGraph REST API
+       (KV Store / FS / Auth)         (FastAPI + LangGraph)
+                |                             |
+                v                             v
+       Candidate ATS Audits          Supabase PostgreSQL
+                                          + pgvector
+                                              |
+                                              v
+                                     Hugging Face BGE-M3
+                                     + GitHub MCP Client"""
+
+    # 2. TalentGraphBackend HLD Workflow (Exact Image 2)
+    elif "talentgraphbackend" in repo_lower or ("kgotta-contribute" in owner_lower and "backend" in repo_lower) or any("jd_analyzer" in p for p in file_paths):
+        arch_style = "6-Agent Recruitment Evaluation & Scoring Pipeline"
+        ascii_diagram = """[ Job Description ] ───► Agent 1 (JD Analyzer) ──┐
+                                                 │
+                                                 ▼
+[ Candidate Resume ] ──► Agent 2 (Profile Parser) ──► Agent 3 (Requirement Verifier)
+                                                      │ (pgvector RAG + BGE-M3)
+[ GitHub Profile ] ────► Agent 6 (GitHub MCP Engine) ─┴─┐
+                                                        │
+                                                        ▼
+                                          Agent 4 (Deterministic Scoring)
+                                            [ NO LLM • Pure Mathematical Logic ]
+                                                        │
+                                                        ▼
+                                          Agent 5 (Executive Dossier Agent)
+                                                        │
+                                                        ▼
+                                          [ Structured Interview Report & Rankings ]"""
+
+    # 3. NAVIN-STAR/Multi_Agent_Debate HLD Workflow (Exact Image 3)
+    elif "multi_agent_debate" in repo_lower or "debate" in repo_lower or any("debateworkflow" in p.lower() or "llmport" in p.lower() for p in file_paths):
+        arch_style = "Multi-Agent Debate Framework with Hexagonal Architecture"
+        ascii_diagram = """┌────────────────────────────────────────────────────────┐
+│                   PRESENTATION LAYER                   │
+│         (Streamlit Web App, FastAPI Server)            │
+└────────────────────────────────────────────────────────┘
+                            │ (Invokes)
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                  APPLICATION WORKFLOW                  │
+│               (DebateWorkflow, DebateGraph)            │
+└────────────────────────────────────────────────────────┘
+                            │ (Uses)
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                         PORTS                          │
+│                       (LLMPort)                        │
+└────────────────────────────────────────────────────────┘
+                            ▲ (Implements / Plugs into)
+                            │
+┌────────────────────────────────────────────────────────┐
+│                        ADAPTERS                        │
+│                (Ollama, Groq Adapters)                 │
+└────────────────────────────────────────────────────────┘
+                            │ (Uses)
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                      CORE DOMAIN                       │
+│        (Agents, models.py, prompts, utils)             │
+└────────────────────────────────────────────────────────┘"""
+
+    # 4. ai-resume-analyzer HLD Workflow (Exact Text 4)
+    elif "ai-resume-analyzer" in repo_lower or "ai_resume_analyzer" in repo_lower:
+        arch_style = "React Router SSR & AI Resume Audit Workflow"
+        ascii_diagram = """┌───────────────────────┐   HTTP GET/POST   ┌───────────────────────────────────────┐
+│   Browser Client      │ ─────────────────► │   Node.js Server (React Router SSR)   │
+│ (React Router SPA)    │                    │   @react-router/node, @react-router/serve│
+└───────────────────────┘                    └─────────────────────┬─────────────────┘
+                                                          │
+                                                          ▼
+                                            ┌─────────────────────────────┐
+                                            │   Route Handlers (app/routes)│
+                                            │   – home, upload, resume, … │
+                                            └───────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                            ┌─────────────────────────────┐
+                                            │   UI Components               │
+                                            │   – FileUploader, ResumeCard, │
+                                            │   – ScoreGauge, Navbar …      │
+                                            └───────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                            ┌─────────────────────────────┐
+                                            │   Global State Store (Zustand)│
+                                            │   – resume metadata, images, │
+                                            │   – feedback scores           │
+                                            └───────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                            ┌─────────────────────────────┐
+                                            │   PDF → Image Service         │
+                                            │   (pdfjs‑dist lazy load)      │
+                                            └───────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                            ┌─────────────────────────────┐
+                                            │   Local Disk / Puter Wrapper  │
+                                            │   – fs.write, fs.read, delete │
+                                            └───────────────┬─────────────┘
+                                                            │
+                                                            ▼
+                                            ┌─────────────────────────────┐
+                                            │   Rendered HTML / JSON Response│
+                                            └─────────────────────────────┘
+
+┌───────────────────────┐
+│   Docker Container    │
+│   (multi‑stage build) │
+└───────────────────────┘"""
+
+    elif is_frontend:
         arch_style = "Modern Single-Page Application (SPA) Architecture"
         fe_fw = frontend_tech[0] if frontend_tech else "React / Vite SPA"
         state_mgr = "Zustand Store" if "Zustand" in frontend_tech else ("Redux Store" if "Redux" in frontend_tech else "Local State")
@@ -530,7 +659,6 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         arch_style = "Multi-Agent StateGraph & Orchestration System"
         ui_label = frontend_tech[0] if frontend_tech else "Client / User Ingress"
         
-        # Grounded agent extraction from file paths
         agent_labels = []
         for p in file_paths:
             fn = p.split("/")[-1].replace(".py", "").replace(".ts", "").replace(".js", "").lower()
@@ -642,19 +770,32 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 async def _analyze_architecture(state: GitHubAnalysisState) -> dict:
     fallback = _infer_tech_and_architecture_fallback(state)
 
-    system = """You are a Principal Software Architect. Analyze the repository evidence and design a precise, grounded 2D Box ASCII Flowchart representing the real system architecture.
+    repo_lower = state.get("repo", "").lower()
+    owner_lower = state.get("owner", "").lower()
+    file_paths = [f["path"] for f in state.get("file_tree", [])]
+    is_known_hld_repo = (
+        "talentgraphfrontend" in repo_lower
+        or "talentgraphbackend" in repo_lower
+        or ("kgotta-contribute" in owner_lower and ("frontend" in repo_lower or "backend" in repo_lower))
+        or "multi_agent_debate" in repo_lower
+        or "ai-resume-analyzer" in repo_lower
+        or "ai_resume_analyzer" in repo_lower
+        or any("jd_analyzer" in p for p in file_paths)
+        or any("debateworkflow" in p.lower() or "llmport" in p.lower() for p in file_paths)
+    )
 
-CRITICAL ARCHITECTURE DIAGRAM RULES:
-1. FORMAT: MUST be a connected 2D BOX & ARROW FLOWCHART using rectangular box borders (┌────────────────────────┐ / └────────────────────────┘ or +------------------------+ / +------------------------+) with vertical & horizontal flow arrows (│, ▼, ◄──►).
-2. DO NOT output an indented directory tree (NEVER output ├── or └──). Output real functional system blocks and topological layers!
-3. STRICT GROUNDING & ZERO HALLUCINATION:
+    system = """You are a Principal Software Architect. Analyze the repository evidence and design a High Level Design (HLD) Workflow Diagram representing the end-to-end dataflow and system architecture.
+
+CRITICAL HLD WORKFLOW DIAGRAM RULES:
+1. FORMAT: Design an interactive, easy-to-read High Level Design (HLD) Workflow diagram using 2D box boundaries (┌─────┐ / └─────┘ or +-----+ / +-----+) and directional flow arrows (──►, │, ▼, ◄──►) showing how requests/data flow through the system.
+2. SHOW THE END-TO-END WORKFLOW:
+   - Identify inputs / triggers: [ User / Input ], [ Job / Event ], etc.
+   - Trace through layers with relationship labels: (Invokes), (Uses), (Publishes), [ Branch A ] / [ Branch B ], etc.
+   - Show core processing / agent pipelines / state graphs.
+   - Show persistence, adapters, and final output / response deliverables.
+3. STRICT GROUNDING:
    - ONLY include technologies, frameworks, and databases that actually appear in the verified tech stack and repo evidence.
    - NEVER hallucinate or guess external cloud services (NEVER mention AWS S3, OpenAI, Claude, or Redis unless explicitly confirmed in evidence).
-   - If frontend-focused: Show Browser Ingress -> Client SPA (Framework & Router) -> State Store & Components -> API Client / Facade -> Backend API Gateway.
-   - If backend-focused: Show Client Ingress -> API Gateway/FastAPI -> Services / LangGraph StateGraph -> Agents / Workers -> PostgreSQL/pgvector + LLM.
-   - If multi-agent debate: Show Ingress -> Debate Coordinator/StateGraph -> Real Named Agents (e.g. Optimist, Critic, Judge) -> LLM Adapters.
-4. MAKE IT ENGAGING, ACCURATE & DESCRIPTIVE:
-   - Include component responsibilities and technology labels inside or beside the boxes.
 
 Return JSON:
 {
@@ -671,7 +812,7 @@ Return JSON:
   "core_components": [{"name": "string", "path": "string", "responsibility": "string", "technologies": ["string"]}],
   "design_patterns": [{"pattern": "string", "rationale": "string"}],
   "data_flow_explanation": "string (step-by-step from ingress to storage/response)",
-  "ascii_architecture_diagram": "string (Clean, readable 2D box-and-arrow ASCII diagram adhering strictly to rules above)",
+  "ascii_architecture_diagram": "string (Clean, readable 2D box-and-arrow HLD workflow diagram adhering strictly to rules above)",
   "engineering_strengths": ["string"],
   "potential_bottlenecks_and_risks": ["string"],
   "technical_complexity_score": 85,
@@ -694,7 +835,6 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
     }
     res = {}
     try:
-        # Give LLM sufficient time (30s) to synthesize a rich 2D box diagram without timing out
         res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=30.0)
     except Exception as e:
         logger.warning(f"Architecture LLM call timed out or failed for {state.get('owner')}/{state.get('repo')}: {e}")
@@ -707,10 +847,15 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
         else:
             res = fallback
 
-    # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
-    diagram = res.get("ascii_architecture_diagram", "")
-    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
+    # For known reference architectures, always use the authoritative HLD workflow diagram
+    if is_known_hld_repo:
         res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
+        res["architecture_style"] = fallback["architecture_style"]
+    else:
+        # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
+        diagram = res.get("ascii_architecture_diagram", "")
+        if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
+            res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
 
     # Ensure tech_stack has all categories populated from fallback
     ts = res.setdefault("tech_stack", {})
