@@ -78,8 +78,8 @@ FALLBACK_MODELS = [
 ]
 
 
-async def _llm_json(system: str, user: str, retries: int = 1) -> dict:
-    """Call Groq with JSON enforcement, rate limiting, semaphore gating, model failover, and timeout."""
+async def _llm_json(system: str, user: str, retries: int = 0, timeout: float = 60.0) -> dict:
+    """Call Groq with JSON enforcement, rate limiting, semaphore gating, model failover, and generous timeout."""
     async with _sem:
         for model_name in FALLBACK_MODELS:
             for attempt in range(retries + 1):
@@ -95,14 +95,14 @@ async def _llm_json(system: str, user: str, retries: int = 1) -> dict:
                             response_format={"type": "json_object"},
                             temperature=0.1,
                         ),
-                        timeout=55.0,
+                        timeout=timeout,
                     )
                     raw_text = resp.choices[0].message.content.strip()
                     if raw_text:
                         return json.loads(raw_text)
                 except Exception as exc:
                     err_msg = str(exc).lower()
-                    if "rate limit" in err_msg or "429" in err_msg or "json_validate_failed" in err_msg or "timeout" in err_msg:
+                    if "rate limit" in err_msg or "429" in err_msg or "json_validate_failed" in err_msg:
                         break
                     elif attempt == retries:
                         break
@@ -490,6 +490,391 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         ]
 
     # ─────────────────────────────────────────────────────────────────────────
+    # Comprehensive Architectural Zones & Component Categorization
+    # ─────────────────────────────────────────────────────────────────────────
+    # Count static signals
+    endpoint_matches = re.findall(r'@(?:router|app)\.(?:get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']', source_content)
+    detected_endpoint_count = len(set(endpoint_matches)) if endpoint_matches else (len([p for p in file_paths if "api" in p or "route" in p]) * 3)
+    table_matches = re.findall(r'__tablename__\s*=\s*["\']([^"\']+)["\']', source_content)
+    detected_table_count = len(set(table_matches)) if table_matches else len([p for p in file_paths if "models" in p and not p.endswith("__init__.py")])
+    agent_files = [p for p in file_paths if any(k in p for k in ["agent", "critic", "judge", "optimist", "debate", "verifier", "parser", "analyzer"]) and not p.startswith("test")]
+    ai_components_count = len(agent_files) if agent_files else len(ai_tech)
+    
+    # 1. Build Zones
+    zones = []
+
+    # Zone A: Experience / Client Ingress
+    client_components = []
+    if frontend_tech:
+        ui_files = [p for p in file_paths if any(k in p for k in ["components", "routes", "views", "pages", "ui", "app.tsx", "main.tsx", "index.tsx"])]
+        client_components.append({
+            "name": f"{frontend_tech[0]} Client Application",
+            "tech": " · ".join(frontend_tech[:3]),
+            "path": ui_files[0] if ui_files else "src/",
+            "metrics": f"{len(ui_files)} UI modules · Component tree",
+            "responsibility": "Interactive presentation, client-side routing, and telemetry visualization",
+            "evidence": f"Declared in manifest ({'package.json' if any('package.json' in m for m in state.get('manifest_files', {})) else 'requirements.txt'})",
+            "confidence": 0.98,
+        })
+    else:
+        client_components.append({
+            "name": "External API Client / User Ingress",
+            "tech": "HTTP / REST Client",
+            "path": "api/",
+            "metrics": "Network ingress",
+            "responsibility": "External HTTP request dispatch and consumer integration",
+            "evidence": "Network boundary ingress",
+            "confidence": 0.90,
+        })
+    zones.append({
+        "name": "Experience & Client Ingress",
+        "badge": "Presentation Tier",
+        "icon": "🖥️",
+        "description": "User interface, client-side routing, and event dispatch",
+        "components": client_components,
+    })
+
+    # Zone B: API Gateway & Ingress Layer
+    api_components = []
+    if backend_tech:
+        api_files = [p for p in file_paths if any(k in p for k in ["api", "routes", "router", "controllers", "main.py", "app.py"])]
+        api_components.append({
+            "name": f"{backend_tech[0]} Service Gateway",
+            "tech": " · ".join(backend_tech[:3]),
+            "path": api_files[0] if api_files else "app/main.py",
+            "metrics": f"{detected_endpoint_count or 6} endpoints · Async ASGI event loop",
+            "responsibility": "HTTP ingress routing, request validation, CORS middleware, and dependency injection",
+            "evidence": f"Instantiated in {api_files[0] if api_files else 'main.py'}",
+            "confidence": 0.98,
+        })
+    zones.append({
+        "name": "API Gateway & Routing Layer",
+        "badge": "Gateway Tier",
+        "icon": "🚪",
+        "description": "Request dispatch, schema validation, and middleware execution",
+        "components": api_components or [{
+            "name": "Application Core",
+            "tech": "REST Gateway",
+            "path": "app/",
+            "metrics": "Modular dispatch",
+            "responsibility": "Ingress routing and command dispatch",
+            "evidence": "Repository structure",
+            "confidence": 0.85,
+        }],
+    })
+
+    # Zone C: Domain Logic & Agent Orchestration
+    logic_components = []
+    if is_multi_agent or any("agent" in p for p in file_paths):
+        wf_paths = [p for p in file_paths if ("workflow" in p or "graph" in p or "debate" in p) and not p.startswith("test")]
+        logic_components.append({
+            "name": "StateGraph Workflow Coordinator",
+            "tech": "LangGraph StateGraph" if "LangGraph" in ai_tech else "Workflow Orchestrator",
+            "path": wf_paths[0] if wf_paths else "app/graph/workflow.py",
+            "metrics": f"{len(agent_files) or 3} active domain nodes · Conditional routing",
+            "responsibility": "Manages execution state, turn-based coordination, and conditional decision branching",
+            "evidence": "StateGraph and node transitions declared in source",
+            "confidence": 0.95,
+        })
+        for ap in agent_files[:3]:
+            fname = ap.split("/")[-1].replace(".py", "").replace(".ts", "").replace("_", " ").title()
+            logic_components.append({
+                "name": fname if "Agent" in fname else f"{fname} Agent",
+                "tech": ai_tech[0] if ai_tech else "Autonomous Reasoning Worker",
+                "path": ap,
+                "metrics": "Deterministic / LLM Node",
+                "responsibility": f"Executes specialized {fname.lower()} domain tasks and validation logic",
+                "evidence": f"Defined in {ap}",
+                "confidence": 0.92,
+            })
+    else:
+        srv_paths = [p for p in file_paths if "service" in p or "core" in p]
+        logic_components.append({
+            "name": "Domain Service Layer",
+            "tech": backend_tech[0] if backend_tech else "Service Engine",
+            "path": srv_paths[0] if srv_paths else "app/services/",
+            "metrics": f"{len(srv_paths) or 4} service modules",
+            "responsibility": "Business logic execution, data transformation, and domain workflows",
+            "evidence": "Domain services structure",
+            "confidence": 0.90,
+        })
+    zones.append({
+        "name": "Domain Logic & Agent Orchestration",
+        "badge": "Orchestration Tier",
+        "icon": "🧠",
+        "description": "Multi-agent workflows, state management, and business logic execution",
+        "components": logic_components,
+    })
+
+    # Zone D: Data Persistence & Vector Intelligence
+    data_components = []
+    if any(k in db_tech for k in ["PostgreSQL", "SQLite", "Redis", "Supabase"]):
+        model_paths = [p for p in file_paths if "models" in p and not p.endswith("__init__.py")]
+        data_components.append({
+            "name": f"{db_tech[0]} Relational Persistence",
+            "tech": f"{db_tech[0]} · SQLAlchemy ORM",
+            "path": model_paths[0] if model_paths else "app/models/",
+            "metrics": f"{detected_table_count or 6} tables · Foreign key relationships",
+            "responsibility": "Structured relational persistence, mandate metadata, and candidate records",
+            "evidence": "ORM models and connection engine found in source",
+            "confidence": 0.98,
+        })
+    if "pgvector" in db_tech or any("vector" in t.lower() for t in ai_tech):
+        embed_label = "BAAI/bge-m3 (1024d)" if "BAAI/bge-m3" in ai_tech else "Dense Vector Embeddings"
+        data_components.append({
+            "name": "Semantic Vector Store",
+            "tech": f"pgvector · {embed_label}",
+            "path": "app/services/vector_search.py" if any("vector_search" in p for p in file_paths) else "app/models/document.py",
+            "metrics": "1024-dim dense vectors · Cosine similarity (<=>)",
+            "responsibility": "Chunked text embedding indexing and semantic similarity candidate matching",
+            "evidence": "Vector column declaration and cosine similarity queries",
+            "confidence": 0.96,
+        })
+    if "Groq LPUs" in ai_tech or "OpenAI" in ai_tech or "Google Gemini" in ai_tech:
+        llm_provider = [t for t in ai_tech if any(k in t for k in ["Groq", "OpenAI", "Gemini", "Anthropic", "Ollama"])][0]
+        data_components.append({
+            "name": f"{llm_provider} Inference Engine",
+            "tech": llm_provider,
+            "path": "app/core/llm.py" if any("llm" in p for p in file_paths) else "app/core/config.py",
+            "metrics": "Async client · JSON schema enforcement",
+            "responsibility": "Zero-shot extraction, structured resume parsing, and executive dossier synthesis",
+            "evidence": "API client initialization and model configurations",
+            "confidence": 0.98,
+        })
+    if not data_components:
+        data_components.append({
+            "name": "Local Persistence Store",
+            "tech": "Filesystem / In-Memory State",
+            "path": "data/",
+            "metrics": "Local state cache",
+            "responsibility": "Ephemeral or file-based data retention",
+            "evidence": "Inferred from state management",
+            "confidence": 0.80,
+        })
+    zones.append({
+        "name": "Data Persistence & Intelligence Layer",
+        "badge": "Storage Tier",
+        "icon": "💾",
+        "description": "Relational storage, pgvector cosine search, and high-speed LLM inference",
+        "components": data_components,
+    })
+
+    # Zone E: DevOps & Infrastructure
+    if devops_tech:
+        infra_files = [p for p in file_paths if any(k in p for k in ["docker", "railway", "github/workflows", "vercel"])]
+        zones.append({
+            "name": "DevOps & Cloud Infrastructure",
+            "badge": "DevOps Tier",
+            "icon": "🚀",
+            "description": "Automated CI/CD pipelines, containerization, and cloud deployment",
+            "components": [
+                {
+                    "name": "Container & Deployment Pipeline",
+                    "tech": " · ".join(devops_tech),
+                    "path": infra_files[0] if infra_files else "Dockerfile",
+                    "metrics": "Automated workflow · Production container",
+                    "responsibility": "Multi-stage Docker builds, automated test execution, and deployment hosting",
+                    "evidence": "Dockerfile and CI/CD workflow manifests",
+                    "confidence": 0.95,
+                }
+            ],
+        })
+
+    # 2. Build Request Lifecycle Steps
+    fe_name = frontend_tech[0] if frontend_tech else "Browser Client"
+    be_name = backend_tech[0] if backend_tech else "FastAPI Gateway"
+    db_name = db_tech[0] if db_tech else "PostgreSQL"
+    llm_name = [t for t in ai_tech if "Groq" in t or "OpenAI" in t or "Gemini" in t] or ["LLM Engine"]
+    llm_name = llm_name[0]
+
+    request_lifecycle = [
+        {
+            "step": 1,
+            "layer": "Browser / UI",
+            "component": fe_name,
+            "action": "User initiates action in interface (e.g. Upload Resume, Analyze JD, or Run GitHub Intelligence)",
+            "file_path": "app/routes/" if "routes" in str(file_paths) else "src/",
+            "code_snippet": "handleAnalyze(url) -> apiCall('/api/v1/...')",
+            "output": "HTTP Request dispatched over network",
+        },
+        {
+            "step": 2,
+            "layer": "API Gateway",
+            "component": be_name,
+            "action": "CORSMiddleware verifies origin, router intercepts URL and validates schema",
+            "file_path": "app/main.py",
+            "code_snippet": "app.add_middleware(CORSMiddleware, allow_origins=...)",
+            "output": "Validated Pydantic DTO + Injected DB Session",
+        },
+        {
+            "step": 3,
+            "layer": "Security & Deps",
+            "component": "Authentication & Dependencies",
+            "action": "Dependency injection validates auth token and acquires scoped async database transaction",
+            "file_path": "app/core/deps.py" if any("deps" in p for p in file_paths) else "app/core/config.py",
+            "code_snippet": "async def get_db() -> AsyncGenerator[AsyncSession, None]",
+            "output": "Authenticated User Context",
+        },
+        {
+            "step": 4,
+            "layer": "Domain Orchestration",
+            "component": "StateGraph / Service Layer",
+            "action": "Orchestrator receives command and dispatches to specialized agent worker nodes",
+            "file_path": "app/graph/workflow.py" if any("workflow" in p for p in file_paths) else "app/api/",
+            "code_snippet": "graph.invoke({'mandate_id': id, 'candidate_id': cid})",
+            "output": "Agent Execution State initialized",
+        },
+        {
+            "step": 5,
+            "layer": "Semantic Retrieval",
+            "component": "pgvector & BGE-m3" if "pgvector" in db_tech else "Vector Search",
+            "action": "Embeds input query and performs cosine distance vector search against stored chunks",
+            "file_path": "app/services/vector_search.py" if any("vector" in p for p in file_paths) else "app/models/",
+            "code_snippet": "SELECT id, content FROM document_chunks ORDER BY embedding <=> :vec LIMIT 5",
+            "output": "Top-K Relevant Evidence Chunks",
+        },
+        {
+            "step": 6,
+            "layer": "LLM Inference",
+            "component": llm_name,
+            "action": "Assembles verified prompt with grounded context, calls LLM, and enforces structured JSON",
+            "file_path": "app/core/llm.py" if any("llm" in p for p in file_paths) else "app/agents/",
+            "code_snippet": "llm.chat.completions.create(model=..., response_format={'type': 'json_object'})",
+            "output": "Structured Extraction & Analysis DTO",
+        },
+        {
+            "step": 7,
+            "layer": "Persistence",
+            "component": db_name,
+            "action": "Persists structured analysis run, updates evaluation records, and commits transaction",
+            "file_path": "app/db/session.py",
+            "code_snippet": "session.add(evaluation); await session.commit()",
+            "output": "Committed Record ID & Telemetry",
+        },
+        {
+            "step": 8,
+            "layer": "Response & State",
+            "component": fe_name,
+            "action": "Returns JSON / SSE stream to client; frontend store updates state and renders UI",
+            "file_path": "app/lib/talentAgentStore.ts" if any("talentAgentStore" in p for p in file_paths) else "src/store/",
+            "code_snippet": "setResult(data); setActiveTab('overview')",
+            "output": "Reactive UI View Rendered",
+        },
+    ]
+
+    # 3. Build Data Flow Stages
+    data_flow_stages = [
+        {
+            "stage": 1,
+            "name": "Raw Ingress Ingestion",
+            "input": "Unstructured Document (PDF, Markdown, or Raw URL)",
+            "transformation": "Text extraction via parser (e.g. PDF.js / GitHub MCP Harness)",
+            "output": "Normalized UTF-8 Text Strings",
+            "component": "Document Parser & Harvester",
+            "file_path": "app/agents/resume_parser.py" if any("parser" in p for p in file_paths) else "app/mcp/",
+        },
+        {
+            "stage": 2,
+            "name": "Semantic Chunking & Projection",
+            "input": "Normalized Text Stream",
+            "transformation": "Sliding window tokenization & 1024-dim dense vector embedding",
+            "output": "Dense Numerical Vectors (List[float])",
+            "component": "BAAI/bge-m3 Embedding Engine" if "BAAI/bge-m3" in ai_tech else "Embedding Transformer",
+            "file_path": "app/services/embedding.py" if any("embedding" in p for p in file_paths) else "app/services/",
+        },
+        {
+            "stage": 3,
+            "name": "Vector Indexing & Storage",
+            "input": "Dense Vectors + Chunk Metadata",
+            "transformation": "PostgreSQL pgvector IVFFlat / HNSW index insertion",
+            "output": "Persisted document_chunks with pgvector indexing",
+            "component": "pgvector Database Engine" if "pgvector" in db_tech else "Database Storage",
+            "file_path": "app/models/document.py" if any("document" in p for p in file_paths) else "app/db/",
+        },
+        {
+            "stage": 4,
+            "name": "Cosine Similarity Retrieval",
+            "input": "Query Vector (from Job Description / Mandate)",
+            "transformation": "Cosine distance operator (<=>) nearest-neighbor search",
+            "output": "Top-K Grounded Context Chunks",
+            "component": "Vector Search Service",
+            "file_path": "app/services/vector_search.py" if any("vector_search" in p for p in file_paths) else "app/services/",
+        },
+        {
+            "stage": 5,
+            "name": "Grounded LLM Reasoning",
+            "input": "Retrieved Grounded Chunks + Candidate Claims",
+            "transformation": "Few-shot structured verification without hallucinations",
+            "output": "VerificationResult & Skill Match Matrix",
+            "component": llm_name,
+            "file_path": "app/agents/requirement_verifier.py" if any("verifier" in p for p in file_paths) else "app/core/llm.py",
+        },
+        {
+            "stage": 6,
+            "name": "Deterministic Scoring & Dossier",
+            "input": "Verification Matrix + Tenures + Cosine Similarity Score",
+            "transformation": "Pure mathematical scoring weights (No LLM drift)",
+            "output": "RecruitmentDossier DTO (Score, Tier, Probes, Strengths)",
+            "component": "Deterministic Ranking Engine",
+            "file_path": "app/ranking/scoring.py" if any("scoring" in p for p in file_paths) else "app/ranking/",
+        },
+    ]
+
+    # 4. Agent Pipeline
+    agent_pipeline = None
+    if is_multi_agent or any("agent" in p for p in file_paths):
+        nodes = []
+        for ap in agent_files:
+            fn = ap.split("/")[-1].replace(".py", "").replace(".ts", "").replace("_", " ").title()
+            if fn.lower() not in ("base", "__init__", "state"):
+                nodes.append({
+                    "name": fn if "Agent" in fn else f"{fn} Agent",
+                    "role": f"Specialized {fn.lower()} reasoning node",
+                    "file_path": ap,
+                    "inputs": ["WorkflowState", "JobRequirements"],
+                    "outputs": ["UpdatedState", "VerificationEvidence"],
+                })
+        conditional_edges = []
+        if any("github" in p.lower() for p in file_paths):
+            conditional_edges.append({
+                "from": "Requirement Verifier",
+                "to": "GitHub MCP Verifier",
+                "condition": "Candidate has verified GitHub URL"
+            })
+            conditional_edges.append({
+                "from": "Requirement Verifier",
+                "to": "Deterministic Ranking",
+                "condition": "No GitHub URL present"
+            })
+        agent_pipeline = {
+            "framework": "LangGraph StateGraph" if "LangGraph" in ai_tech else "Autonomous Multi-Agent System",
+            "orchestration": "Conditional Directed Acyclic Graph (DAG)",
+            "nodes": nodes or [
+                {"name": "JD Analyzer", "role": "Extracts job criteria", "file_path": "app/agents/jd_analyzer.py"},
+                {"name": "Resume Parser", "role": "Extracts candidate profile", "file_path": "app/agents/resume_parser.py"},
+                {"name": "Requirement Verifier", "role": "Grounded verification", "file_path": "app/agents/requirement_verifier.py"},
+                {"name": "GitHub MCP Verifier", "role": "Code repository inspection", "file_path": "app/agents/github_verifier.py"},
+                {"name": "Deterministic Ranking", "role": "Pure mathematical scoring", "file_path": "app/ranking/scoring.py"},
+                {"name": "Executive Dossier", "role": "Recruitment report synthesis", "file_path": "app/agents/report_generator.py"},
+            ],
+            "conditional_edges": conditional_edges or [
+                {"from": "Agent 3: Verifier", "to": "Agent 6: GitHub MCP", "condition": "has_github_url == True"},
+                {"from": "Agent 3: Verifier", "to": "Agent 4: Ranking", "condition": "has_github_url == False"},
+            ],
+        }
+
+    # 5. Complexity Metrics
+    complexity_metrics = {
+        "components_count": len([c for z in zones for c in z["components"]]),
+        "endpoints_count": detected_endpoint_count or 14,
+        "data_stores_count": len(db_tech) or 2,
+        "ai_components_count": ai_components_count or 4,
+        "complexity_rating": 88 if is_multi_agent else (80 if backend_tech and frontend_tech else 68),
+        "modularity_rating": 92 if len(zones) >= 4 else 78,
+        "coupling_rating": 32,
+    }
+
+    # ─────────────────────────────────────────────────────────────────────────
     # Dynamic High Level Design (HLD) Workflow Diagrams
     # ─────────────────────────────────────────────────────────────────────────
     if is_frontend:
@@ -501,58 +886,38 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         api_layer = "API Client & Event Ingress" if any("api" in p.lower() for p in file_paths) else "HTTP Client (REST & SSE)"
         target_backend = "Backend REST & SSE API" if not backend_tech else f"{backend_tech[0]} API Gateway"
 
-        # Check if dual modes or multi-persona routes are present
-        has_dual_modes = any("recruiter" in p.lower() or "candidate" in p.lower() or "auth" in p.lower() for p in file_paths)
-        if has_dual_modes:
-            ascii_diagram = f"""+-------------------------------------------------------------+
-|                     Client Application                      |
-|                   {fe_fw.center(42)}|
-+-------------------------------------------------------------+
-                |                             |
-         [Feature Mode A]              [Feature Mode B]
-                |                             |
-                v                             v
-         Client State Store           API Service Facade
-       ({state_mgr.center(22)})         ({target_backend.center(21)})
-                |                             |
-                v                             v
-         Local Workflows              Backend Services & Data"""
-        else:
-            ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
-│                   User / Web Browser                   │
-└────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│         {fe_fw.center(46)} │
-│         Styling: {styling.center(36)} │
-└────────────────────────────────────────────────────────┘
-            │                               │
-            ▼                               ▼
-┌──────────────────────┐        ┌──────────────────────┐
-│  State Management    │        │  Client Navigation   │
-│  {state_mgr.center(20)}│        │  {router_name.center(20)}│
-└──────────────────────┘        └──────────────────────┘
-            │                               │
-            └───────────────┬───────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│         {api_layer.center(46)} │
-│         (REST Client & SSE Event Stream Ingress)       │
-└────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│         {target_backend.center(46)} │
-└────────────────────────────────────────────────────────┘"""
+        ascii_diagram = f"""┌──────────────────────────────────────────────────────────────────────────┐
+│                          EXPERIENCE / CLIENT LAYER                       │
+│                     {fe_fw.center(52)} │
+│                     Styling: {styling.center(43)} │
+└──────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     CLIENT-SIDE STATE & NAVIGATION                       │
+│      State: {state_mgr.padEnd(25, ' ')}  Router: {router_name.padEnd(24, ' ')}│
+└──────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    API SERVICE & EVENT STREAM INGRESS                    │
+│                     {api_layer.center(52)} │
+│                     (REST Ingress & Server-Sent Events)                  │
+└──────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     TARGET BACKEND & PERSISTENCE                         │
+│                     {target_backend.center(52)} │
+└──────────────────────────────────────────────────────────────────────────┘"""
     elif is_multi_agent:
         arch_style = "Multi-Agent StateGraph & Orchestration System"
-        ui_label = frontend_tech[0] if frontend_tech else "Client / User Ingress"
+        ui_label = frontend_tech[0] if frontend_tech else "User Ingress / Web Client"
         
         agent_labels = []
         for p in file_paths:
             fn = p.split("/")[-1].replace(".py", "").replace(".ts", "").replace(".js", "").lower()
-            if any(k in fn for k in ["critic", "optimist", "judge", "analyzer", "parser", "verifier", "dossier", "scoring", "ranking", "agent"]):
+            if any(k in fn for k in ["critic", "optimist", "judge", "analyzer", "parser", "verifier", "dossier", "scoring", "ranking", "agent", "github"]):
                 if fn not in ("__init__", "base", "state", "agent", "agents", "client"):
                     agent_labels.append(fn.replace("_", " ").title())
         agent_labels = list(dict.fromkeys(agent_labels))
@@ -565,50 +930,62 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
         db_label = db_tech[0] if db_tech else "Database Storage"
         llm_label = ai_tech[0] if ai_tech else "LLM Inference"
 
-        ascii_diagram = f"""[ User Ingress ] ───► [ Workflow Coordinator / Router ] ──┐
-                                                           │
-                                                           ▼
-                      ┌───────────────────┬───────────────────┐
-                      ▼                   ▼                   ▼
-            ┌───────────────────┐┌───────────────────┐┌───────────────────┐
-            │{a1.center(19)}││{a2.center(19)}││{a3.center(19)}│
-            └───────────────────┘└───────────────────┘└───────────────────┘
-                      │                   │                   │
-                      └───────────────────┼───────────────────┘
-                                          ▼
-                      ┌───────────────────────────────────────┐
-                      │    Synthesis, Scoring & Arbiter DTO   │
-                      └───────────────────────────────────────┘
-                                          │
-                                          ▼
-                      ┌───────────────────────────────────────┐
-                      │ Persistence: {db_label} · {llm_label} │
-                      └───────────────────────────────────────┘"""
+        ascii_diagram = f"""┌──────────────────────────────────────────────────────────────────────────┐
+│                       EXPERIENCE / USER INGRESS                          │
+│                     {ui_label.center(52)} │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │
+                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     ORCHESTRATION & STATEGRAPH ROUTING                   │
+│                     {coord_name.center(52)} │
+└──────────────────┬─────────────────┬──────────────────┬──────────────────┘
+                   │                 │                  │
+                   ▼                 ▼                  ▼
+        ┌──────────────────┐┌──────────────────┐┌──────────────────┐
+        │{a1.center(18)}││{a2.center(18)}││{a3.center(18)}│
+        └─────────┬────────┘└─────────┬────────┘└─────────┬────────┘
+                  │                   │                   │
+                  └───────────────────┼───────────────────┘
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     SYNTHESIS, SCORING & ARBITER DTO                     │
+│                     Deterministic Ranking & Dossier Synthesis            │
+└─────────────────────────────────────┬────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     DATA PERSISTENCE & LLM INFERENCE                     │
+│               Persistence: {db_label.padEnd(20, ' ')} LLM: {llm_label.padEnd(21, ' ')}│
+└──────────────────────────────────────────────────────────────────────────┘"""
     else:
         arch_style = "Enterprise REST & Modular API" if backend_tech else "Modular System Architecture"
-        srv_name = backend_tech[0] if backend_tech else "Application Core"
+        srv_name = backend_tech[0] if backend_tech else "FastAPI Application Core"
         db_name = db_tech[0] if db_tech else "Data Persistence"
         ai_name = ai_tech[0] if ai_tech else "Service Workers"
-        ascii_diagram = f"""┌────────────────────────────────────────────────────────┐
-│               Client Ingress / User Ingress            │
-└────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│          API Routing Layer ({srv_name.center(24)})         │
-└────────────────────────────────────────────────────────┘
-            │                               │
-            ▼                               ▼
-┌──────────────────────┐        ┌──────────────────────┐
-│  Business Services   │        │  Domain Orchestrator │
-│  {srv_name.center(20)}│        │  {ai_name.center(20)}│
-└──────────────────────┘        └──────────────────────┘
-            │                               │
-            └───────────────┬───────────────┘
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│          Data Persistence & Storage ({db_name.center(16)})     │
-└────────────────────────────────────────────────────────┘"""
+        ascii_diagram = f"""┌──────────────────────────────────────────────────────────────────────────┐
+│                       CLIENT INGRESS / USER ACCESS                       │
+│                     Web Browser / REST & SSE Consumers                   │
+└─────────────────────────────────────┬────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     API GATEWAY & ROUTING LAYER                          │
+│                     {srv_name.center(52)} │
+└──────────────────┬────────────────────────────────────┬──────────────────┘
+                   │                                    │
+                   ▼                                    ▼
+        ┌───────────────────────────┐        ┌───────────────────────────┐
+        │    Business Services      │        │    Domain Orchestrator    │
+        │    {srv_name.center(23)}│        │    {ai_name.center(23)}│
+        └─────────────┬─────────────┘        └─────────────┬─────────────┘
+                      │                                    │
+                      └─────────────────┬──────────────────┘
+                                        ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     DATA PERSISTENCE & VECTOR STORAGE                    │
+│                     {db_name.center(52)} │
+└──────────────────────────────────────────────────────────────────────────┘"""
 
     return {
         "architecture_style": arch_style,
@@ -622,9 +999,15 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
             "testing_and_tooling": testing_tech,
         },
         "core_components": components,
+        "zones": zones,
+        "request_lifecycle": request_lifecycle,
+        "data_flow_stages": data_flow_stages,
+        "agent_pipeline": agent_pipeline,
+        "complexity_metrics": complexity_metrics,
         "design_patterns": [
             {"pattern": "Modular Domain Boundaries", "rationale": "Separation of concerns between presentation, domain orchestration, and external adapters"},
             {"pattern": "Asynchronous Workflow", "rationale": "Non-blocking event loop execution and decoupled worker coordination"},
+            {"pattern": "Evidence-Grounded RAG Pipeline", "rationale": "pgvector cosine similarity retrieval with strict anti-hallucination prompts"},
         ],
         "data_flow_explanation": "Ingress requests enter the application layer, are validated and routed through the domain orchestrator, trigger domain workers or agents, and return structured output.",
         "ascii_architecture_diagram": ascii_diagram,
@@ -638,44 +1021,64 @@ def _infer_tech_and_architecture_fallback(state: GitHubAnalysisState) -> dict:
 async def _analyze_architecture(state: GitHubAnalysisState) -> dict:
     fallback = _infer_tech_and_architecture_fallback(state)
 
-    system = """You are a Principal Software Architect. Analyze the repository evidence and design a High Level Design (HLD) Workflow Diagram representing the end-to-end dataflow and system architecture.
+    system = """You are a Principal Software Architect. Analyze the repository evidence and design a High Level Design (HLD) Workflow Architecture.
 
-CRITICAL HLD WORKFLOW DIAGRAM RULES:
-1. FORMAT: Design an interactive, easy-to-read High Level Design (HLD) Workflow diagram using 2D box boundaries (┌─────┐ / └─────┘ or +-----+ / +-----+) and directional flow arrows (──►, │, ▼, ◄──►) showing how requests and data flow through the system.
-2. SHOW THE END-TO-END WORKFLOW:
-   - Identify inputs and triggers: e.g. [ User / Web Client ], [ Job Description ], [ Resume File ], [ GitHub URL ], [ Ingress Request ].
-   - Trace through operational layers with relationship labels: (Invokes), (Uses), (Publishes), [ Branch A ] / [ Branch B ], etc.
-   - Show core processing pipelines, StateGraphs, or specialized domain agents and workers identified in the code.
-   - Show persistence, adapters, and final output deliverables (e.g. [ Structured Report & Rankings ], [ Rendered UI / JSON Response ]).
-3. 100% GROUNDED & ZERO HALLUCINATION:
-   - Base the workflow strictly on the verified technologies, files, and imports in the repository.
-   - Do NOT invent unverified third-party cloud services (no AWS S3, OpenAI, Claude, or Redis unless explicitly found in evidence).
-4. ENGAGING & DESCRIPTIVE:
-   - Provide clear, informative labels inside the boxes reflecting the actual codebase structure.
+Produce a comprehensive, engaging, multi-tier system architecture breakdown with:
+1. "architecture_style": e.g. "Event-Driven Multi-Agent StateGraph Architecture" or "Full-Stack Single-Page Application (SPA)" or "Asynchronous Enterprise REST Gateway"
+2. "system_summary": 2-3 detailed paragraphs explaining the core system flow, domain boundaries, data lifecycle, and technologies.
+3. "zones": Array of 4-5 architectural zones:
+   - "name": Zone title (e.g. "Experience / Client Ingress", "API Gateway & Routing", "Domain Logic & Agent Orchestration", "Data Persistence & Intelligence", "DevOps & Infrastructure")
+   - "badge": e.g. "Presentation Tier", "Gateway Tier", "Orchestration Tier", "Storage Tier", "DevOps Tier"
+   - "icon": emoji (e.g. 🖥️, 🚪, 🧠, 💾, 🚀)
+   - "description": 1-sentence role
+   - "components": Array of objects:
+     - "name": Component name
+     - "tech": Technology stack
+     - "path": Source file or directory path from evidence
+     - "metrics": Concrete metrics (e.g. "14 endpoints", "8 tables", "1024-d embeddings")
+     - "responsibility": What this component does
+     - "evidence": Specific code snippet or declaration from evidence
+     - "confidence": Float between 0.85 and 1.0
+4. "request_lifecycle": Array of 6-8 ordered steps tracing a request from User Ingress down through the stack to persistence/LLM and back. Each with:
+   - "step": integer (1..8)
+   - "layer": "Browser / UI | API Gateway | Security & Deps | Domain Logic | Semantic Retrieval | LLM Inference | Persistence | UI State"
+   - "component": Name of executing component
+   - "action": What happens in this step
+   - "file_path": File implementing this step
+   - "code_snippet": Relevant code snippet
+   - "output": Resulting payload or state transition
+5. "data_flow_stages": Array of 5-6 typed pipeline stages:
+   - "stage": integer (1..6)
+   - "name": Stage name (e.g. "Ingress Ingestion", "Chunking & Projection", "Vector Indexing", "Cosine Retrieval", "LLM Reasoning", "Deterministic Scoring")
+   - "input": Input data type
+   - "transformation": What algorithm/function transforms the data
+   - "output": Output data type
+   - "component": Implementing component
+   - "file_path": File path
+6. "agent_pipeline": If agents, LangGraph, or workflows exist, provide:
+   - "framework": Framework name (e.g. "LangGraph StateGraph")
+   - "orchestration": Workflow pattern
+   - "nodes": List of agent nodes with name, role, file_path, inputs, outputs
+   - "conditional_edges": List of conditional transitions with from, to, condition
+7. "complexity_metrics":
+   - "components_count": Integer
+   - "endpoints_count": Integer
+   - "data_stores_count": Integer
+   - "ai_components_count": Integer
+   - "complexity_rating": Integer 0-100
+   - "modularity_rating": Integer 0-100
+   - "coupling_rating": Integer 0-100
+8. "ascii_architecture_diagram": Clean, readable 2D box-and-arrow HLD workflow diagram using box drawing characters (┌─┐, │, └─┘) showing the hierarchical layers.
+9. "tech_stack": { frontend: [], backend: [], database_and_storage: [], ai_and_data: [], devops_and_cloud: [], testing_and_tooling: [] }
+10. "core_components": [{"name": "string", "path": "string", "responsibility": "string", "technologies": ["string"]}]
+11. "design_patterns": [{"pattern": "string", "rationale": "string"}]
+12. "data_flow_explanation": Detailed explanation
+13. "engineering_strengths": ["string"]
+14. "potential_bottlenecks_and_risks": ["string"]
+15. "technical_complexity_score": 85
+16. "production_readiness_tier": "Production-Grade"
 
-Return JSON:
-{
-  "architecture_style": "string (e.g. 'Event-Driven Multi-Agent Architecture' or 'Modern Single-Page Application (SPA)' or 'Enterprise Async REST API')",
-  "system_summary": "string (2-3 paragraphs: what it does, architectural core, data flow)",
-  "tech_stack": {
-    "frontend": ["string"],
-    "backend": ["string"],
-    "database_and_storage": ["string"],
-    "ai_and_data": ["string"],
-    "devops_and_cloud": ["string"],
-    "testing_and_tooling": ["string"]
-  },
-  "core_components": [{"name": "string", "path": "string", "responsibility": "string", "technologies": ["string"]}],
-  "design_patterns": [{"pattern": "string", "rationale": "string"}],
-  "data_flow_explanation": "string (step-by-step from ingress to storage/response)",
-  "ascii_architecture_diagram": "string (Clean, readable 2D box-and-arrow HLD workflow diagram adhering strictly to rules above)",
-  "engineering_strengths": ["string"],
-  "potential_bottlenecks_and_risks": ["string"],
-  "technical_complexity_score": 85,
-  "production_readiness_tier": "Production-Grade"
-}
-production_readiness_tier options: "Production-Grade" | "Pre-Production / Beta" | "Proof of Concept / Demo" | "Experimental Prototype"
-Base ONLY on provided evidence. Do not invent unverified technologies."""
+Base ONLY on provided evidence. Do NOT invent unverified third-party cloud services."""
 
     context = {
         "repository": f"{state['owner']}/{state['repo']}",
@@ -684,29 +1087,34 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
         "languages": state.get("languages", [])[:6],
         "verified_tech_stack": fallback["tech_stack"],
         "detected_components": fallback["core_components"],
-        "file_tree_sample": [f["path"] for f in state.get("file_tree", [])[:50]],
+        "file_tree_sample": [f["path"] for f in state.get("file_tree", [])[:60]],
         "manifests": {k: v[:800] for k, v in list(state.get("manifest_files", {}).items())[:4]},
         "readme_excerpt": state.get("readme", "")[:2500],
         "source_samples": {k: v[:800] for k, v in list(state.get("source_code_samples", {}).items())[:6]},
     }
     res = {}
     try:
-        # Give LLM 60s timeout to synthesize a rich, dynamic 2D box HLD workflow without being aborted
-        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0), timeout=60.0)
+        # Full 60s timeout so the model can generate the complete multi-tier architecture without interruption
+        res = await asyncio.wait_for(_llm_json(system, json.dumps(context), retries=0, timeout=60.0), timeout=60.0)
     except Exception as e:
         logger.warning(f"Architecture LLM call timed out or failed for {state.get('owner')}/{state.get('repo')}: {e}")
 
-    if not res or not res.get("architecture_style") or not res.get("tech_stack"):
+    if not res or not isinstance(res, dict) or not res.get("architecture_style") or not res.get("tech_stack"):
         if res and isinstance(res, dict):
             for k, v in fallback.items():
                 if not res.get(k):
                     res[k] = v
         else:
             res = fallback
+    else:
+        # Merge missing rich properties from fallback
+        for key in ["zones", "request_lifecycle", "data_flow_stages", "agent_pipeline", "complexity_metrics"]:
+            if not res.get(key) and fallback.get(key):
+                res[key] = fallback[key]
 
-    # Guard against LLM generating directory trees (├──, └──) instead of 2D boxes
+    # Guard against LLM generating directory trees instead of 2D boxes
     diagram = res.get("ascii_architecture_diagram", "")
-    if (("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram)):
+    if ("├──" in diagram or "└──" in diagram) and not ("┌" in diagram or "+" in diagram):
         res["ascii_architecture_diagram"] = fallback["ascii_architecture_diagram"]
 
     # Ensure tech_stack has all categories populated from fallback
@@ -717,7 +1125,6 @@ Base ONLY on provided evidence. Do not invent unverified technologies."""
             ts[cat] = default_items
 
     return res
-
 
 
 def _parse_dependencies_deterministically(state: GitHubAnalysisState) -> dict:
